@@ -1,8 +1,9 @@
-const CACHE_NAME = 'lwh-card-label-v2';
+const CACHE_NAME = 'lwh-card-label-v5';
 const CORE_ASSETS = [
   './', './index.html', './manifest.json', './logo.png', './favicon.ico',
   './icon-192.png', './icon-512.png', './icon-192-maskable.png', './icon-512-maskable.png',
-  './apple-touch-icon.png', './vendor/qrcode.min.js', './vendor/JsBarcode.all.min.js'
+  './apple-touch-icon.png', './vendor/qrcode.min.js', './vendor/JsBarcode.all.min.js',
+  './vendor/zxing.min.js'
 ];
 
 self.addEventListener('install', (event) => {

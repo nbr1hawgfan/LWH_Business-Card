@@ -3,6 +3,26 @@
 Zero-build static PWA. No Apps Script, no server — everything (vCard QR codes,
 Code128 barcodes) is generated in the browser and sent straight to `window.print()`.
 
+## Copies per label
+
+The "Copies per label" field on the Bulk Labels tab reprints every ID in the
+batch that many times in a row — e.g. set it to 2 if a bin needs the same
+label on the front and the side. Defaults to 1.
+
+## Scan to verify
+
+After generating a batch, a "Verify Before You Install" panel appears below
+the preview. Hit **Start Scanning**, point your camera at a freshly printed
+label, and it checks the scanned code against the batch — the matching chip
+turns green. Useful for catching a bad print (smudged barcode, wrong ID)
+*before* a bay sign goes up somewhere you can't easily get back to.
+
+This uses your camera through the browser (`getUserMedia`), which only works
+over HTTPS — GitHub Pages serves everything over HTTPS by default, so no
+extra setup needed there. The browser will ask for camera permission the
+first time; say yes. It reads both the QR code and the barcode, so scanning
+either one on the label works.
+
 ## Why the QR codes/barcodes might not show up
 
 If you pushed an earlier version of this app that loaded QR/barcode libraries
