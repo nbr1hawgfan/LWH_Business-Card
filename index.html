@@ -236,12 +236,14 @@
   #printRoot{display:none;}
 
   @media print{
+    html, body{ width:100%; height:100%; margin:0; padding:0; }
     body *{visibility:hidden;}
     #printRoot, #printRoot *{visibility:visible;}
     #printRoot{
       display:block !important;
       position:absolute;
       left:0; top:0;
+      width:100%; height:100%;
     }
     header, nav.tabs{display:none !important;}
   }
@@ -513,33 +515,33 @@ function generateRange(startStr, endStr){
   return ids;
 }
 
-/* Shrinks a visible box's font-size until its text fits on one line —
-   used for the on-screen preview cells, which are actually laid out. */
+/* Scales a visible box's font-size to fill the available width — used for
+   the on-screen preview cells, which are actually laid out so we can
+   measure them directly. */
 function fitPreviewBox(boxEl, maxPx, minPx){
-  let size = maxPx;
-  boxEl.style.fontSize = size + 'px';
   const container = boxEl.parentElement;
   const limit = container.clientWidth - 20;
-  while (boxEl.scrollWidth > limit && size > minPx){
-    size -= 1;
-    boxEl.style.fontSize = size + 'px';
-  }
+  boxEl.style.fontSize = '100px';
+  const refWidth = boxEl.scrollWidth || 1;
+  let size = Math.floor(100 * (limit / refWidth));
+  size = Math.max(minPx, Math.min(maxPx, size));
+  boxEl.style.fontSize = size + 'px';
 }
 
-/* Computes a font size (in pt) that fits `text` within `maxWidthPt`, using
+/* Computes a font size (in pt) that fills `maxWidthPt` with `text`, using
    an offscreen canvas to measure — needed for the print markup, which sits
    inside a display:none container until window.print() fires, so it can't
-   be measured via normal DOM layout (scrollWidth) at build time. */
+   be measured via normal DOM layout (scrollWidth) at build time. Scales
+   proportionally from a reference size rather than shrinking from a fixed
+   cap, so short IDs grow to use the space instead of leaving it empty. */
 function fitFontSizePt(text, maxWidthPt, maxFontPt, minFontPt, weight, family){
   const canvas = fitFontSizePt._canvas || (fitFontSizePt._canvas = document.createElement('canvas'));
   const ctx = canvas.getContext('2d');
-  let size = maxFontPt;
-  while (size > minFontPt){
-    ctx.font = weight + ' ' + size + 'pt ' + family;
-    if (ctx.measureText(text).width <= maxWidthPt) break;
-    size -= 1;
-  }
-  return size;
+  const ref = 100;
+  ctx.font = weight + ' ' + ref + 'pt ' + family;
+  const refWidth = ctx.measureText(text).width || 1;
+  const size = Math.floor(ref * (maxWidthPt / refWidth));
+  return Math.max(minFontPt, Math.min(maxFontPt, size));
 }
 
 let currentLabelIds = [];
@@ -586,7 +588,7 @@ document.getElementById('lblGenBtn').onclick = function(){
       JsBarcode('#bc_' + i, id, { format: 'CODE128', displayValue: true, fontSize: 12, height: 32, margin: 4 });
     } catch(e) { /* ignore ids with characters CODE128 can't encode, QR still shows */ }
   });
-  grid.querySelectorAll('.lbl-box').forEach(box => fitPreviewBox(box, 22, 10));
+  grid.querySelectorAll('.lbl-box').forEach(box => fitPreviewBox(box, 34, 10));
   msg.textContent = ids.length + ' labels ready.'; msg.className = 'msg success';
 };
 
@@ -607,16 +609,16 @@ document.getElementById('lblPrintBtn').onclick = function(){
       .rack-label:last-child{page-break-after:auto;}
       .rack-label .lbl-box{
         display:inline-block; border:5pt solid #000; border-radius:4pt;
-        padding:8pt 20pt; font-weight:900; max-width:92%; white-space:nowrap;
+        padding:8pt 20pt; font-weight:900; max-width:95%; white-space:nowrap;
       }
       .rack-label .lbl-codes{
-        display:flex; align-items:center; justify-content:center; gap:40pt; margin-top:24pt;
+        display:flex; align-items:center; justify-content:center; gap:40pt; margin-top:20pt;
       }
     `;
-    // 6in page, 0.2in margins, 92% box width, minus its own padding (20pt*2) and border (5pt*2)
-    const maxTextWidthPt = (6 * 72 - 0.2 * 72 * 2) * 0.92 - 20 * 2 - 5 * 2;
+    // 6in page, 0.2in margins, 95% box width, minus its own padding (20pt*2) and border (5pt*2)
+    const maxTextWidthPt = (6 * 72 - 0.2 * 72 * 2) * 0.95 - 20 * 2 - 5 * 2;
     printRoot.innerHTML = currentLabelIds.map((id,i) => {
-      const fontPt = fitFontSizePt(id, maxTextWidthPt, 56, 20, '900', 'Arial, Helvetica, sans-serif');
+      const fontPt = fitFontSizePt(id, maxTextWidthPt, 72, 18, '900', 'Arial, Helvetica, sans-serif');
       return `
       <div class="rack-label">
         <div class="lbl-box" style="font-size:${fontPt}pt;">${escapeHtml(id)}</div>
@@ -638,17 +640,17 @@ document.getElementById('lblPrintBtn').onclick = function(){
       .bay-sign:last-child{page-break-after:auto;}
       .bay-sign .lbl-box{
         display:inline-block; border:7pt solid #000; border-radius:6pt;
-        padding:14pt 32pt; font-weight:900; max-width:92%; white-space:nowrap;
+        padding:14pt 32pt; font-weight:900; max-width:95%; white-space:nowrap;
       }
-      .bay-sign .lbl-subtitle{font-weight:bold; font-size:24pt; margin-top:20pt;}
+      .bay-sign .lbl-subtitle{font-weight:bold; font-size:24pt; margin-top:18pt;}
       .bay-sign .lbl-codes{
-        display:flex; align-items:center; justify-content:center; gap:70pt; margin-top:26pt;
+        display:flex; align-items:center; justify-content:center; gap:70pt; margin-top:22pt;
       }
     `;
-    // 11in page, 0.4in margins, 92% box width, minus its own padding (32pt*2) and border (7pt*2)
-    const maxTextWidthPt = (11 * 72 - 0.4 * 72 * 2) * 0.92 - 32 * 2 - 7 * 2;
+    // 11in page, 0.4in margins, 95% box width, minus its own padding (32pt*2) and border (7pt*2)
+    const maxTextWidthPt = (11 * 72 - 0.4 * 72 * 2) * 0.95 - 32 * 2 - 7 * 2;
     printRoot.innerHTML = currentLabelIds.map((id,i) => {
-      const fontPt = fitFontSizePt(id, maxTextWidthPt, 110, 40, '900', 'Arial, Helvetica, sans-serif');
+      const fontPt = fitFontSizePt(id, maxTextWidthPt, 170, 30, '900', 'Arial, Helvetica, sans-serif');
       return `
       <div class="bay-sign">
         <div class="lbl-box" style="font-size:${fontPt}pt;">${escapeHtml(id)}</div>
@@ -663,10 +665,10 @@ document.getElementById('lblPrintBtn').onclick = function(){
   }
 
   currentLabelIds.forEach((id, i) => {
-    const qrSize = fmt === 'rack' ? 120 : 170;
-    const bcHeight = fmt === 'rack' ? 70 : 110;
-    const bcFontSize = fmt === 'rack' ? 20 : 30;
-    const bcWidth = fmt === 'rack' ? 2.4 : 3.4;
+    const qrSize = fmt === 'rack' ? 150 : 220;
+    const bcHeight = fmt === 'rack' ? 90 : 140;
+    const bcFontSize = fmt === 'rack' ? 24 : 36;
+    const bcWidth = fmt === 'rack' ? 2.8 : 4.0;
     QRCode.toCanvas(document.getElementById('pqr_' + i), id, { width: qrSize, margin: 1 }, () => {});
     try {
       JsBarcode('#pbc_' + i, id, {
