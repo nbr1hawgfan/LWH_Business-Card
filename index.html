@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>LWH Card &amp; Label Printer</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#b00000">
+
+<!-- QR code + barcode generation, all client-side, no server round trip -->
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+
+<style>
+  :root{
+    --lwh-red:#b00000;
+    --ink:#1a1a1a;
+    --muted:#666;
+    --border:#ddd;
+    --bg:#f4f4f5;
+    --panel:#fff;
+  }
+  *{box-sizing:border-box;}
+  body{
+    font-family:Arial, Helvetica, sans-serif;
+    background:var(--bg);
+    color:var(--ink);
+    margin:0;
+    padding:0 0 60px;
+  }
+  header{
+    background:var(--lwh-red);
+    color:#fff;
+    padding:14px 20px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+  }
+  header h1{
+    font-size:16px;
+    margin:0;
+    letter-spacing:.2px;
+  }
+  header span{
+    font-size:11px;
+    opacity:.85;
+  }
+  nav.tabs{
+    display:flex;
+    background:#fff;
+    border-bottom:1px solid var(--border);
+    position:sticky;
+    top:0;
+    z-index:5;
+  }
+  nav.tabs button{
+    flex:1;
+    padding:13px 10px;
+    border:none;
+    background:none;
+    font-size:13px;
+    font-weight:bold;
+    color:var(--muted);
+    cursor:pointer;
+    border-bottom:3px solid transparent;
+  }
+  nav.tabs button.active{
+    color:var(--lwh-red);
+    border-bottom-color:var(--lwh-red);
+  }
+  main{
+    max-width:760px;
+    margin:0 auto;
+    padding:20px 16px;
+  }
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:18px;
+    margin-bottom:16px;
+  }
+  .panel h2{
+    font-size:13px;
+    text-transform:uppercase;
+    letter-spacing:.5px;
+    color:var(--muted);
+    margin:0 0 14px;
+  }
+  .row{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:12px;
+  }
+  label{
+    display:block;
+    font-size:12px;
+    font-weight:bold;
+    margin:10px 0 4px;
+  }
+  label .opt{font-weight:normal;color:var(--muted);}
+  input, select{
+    width:100%;
+    padding:9px 10px;
+    font-size:14px;
+    border:1px solid var(--border);
+    border-radius:6px;
+    font-family:inherit;
+  }
+  input:focus, select:focus{outline:none;border-color:var(--lwh-red);}
+  .fmt-group{
+    display:flex;
+    gap:8px;
+    margin-top:6px;
+  }
+  .fmt-group label{
+    flex:1;
+    display:flex;
+    align-items:center;
+    gap:6px;
+    border:1px solid var(--border);
+    border-radius:6px;
+    padding:9px 10px;
+    font-weight:normal;
+    font-size:13px;
+    margin:0;
+    cursor:pointer;
+  }
+  .fmt-group input{width:auto;}
+  .fmt-group label.checked{border-color:var(--lwh-red);background:#fdf1f1;}
+  button.primary{
+    margin-top:16px;
+    width:100%;
+    padding:12px;
+    background:var(--lwh-red);
+    color:#fff;
+    border:none;
+    border-radius:6px;
+    font-size:14px;
+    font-weight:bold;
+    cursor:pointer;
+  }
+  button.primary:disabled{background:#ccc;cursor:not-allowed;}
+  button.secondary{
+    margin-top:8px;
+    width:100%;
+    padding:10px;
+    background:none;
+    color:var(--lwh-red);
+    border:1px solid var(--lwh-red);
+    border-radius:6px;
+    font-size:13px;
+    font-weight:bold;
+    cursor:pointer;
+  }
+  .msg{
+    margin-top:10px;
+    font-size:13px;
+    text-align:center;
+    min-height:16px;
+  }
+  .msg.error{color:var(--lwh-red);}
+  .msg.success{color:#1a7a1a;}
+
+  /* ---- Business card on-screen preview ---- */
+  .card-preview-wrap{
+    display:flex;
+    gap:18px;
+    flex-wrap:wrap;
+    justify-content:center;
+    margin-top:6px;
+  }
+  .cr80{
+    width:324px;
+    height:204px;
+    border:1px solid var(--border);
+    border-radius:10px;
+    background:#fff;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    padding:10px;
+    text-align:center;
+    box-shadow:0 1px 4px rgba(0,0,0,.08);
+  }
+  .cr80 img.logo{max-height:38px;margin-bottom:4px;}
+  .cr80 .name{font-weight:bold;font-size:16px;}
+  .cr80 .title{font-style:italic;font-weight:bold;font-size:10px;margin-top:1px;}
+  .cr80 .rule{font-size:8px;color:var(--muted);margin:3px 0;}
+  .cr80 .contact{font-weight:bold;font-size:9px;line-height:1.4;}
+  .cr80 .tagline{font-style:italic;font-weight:bold;font-size:10px;color:var(--lwh-red);margin-top:4px;}
+  .cr80 canvas{margin:4px 0;}
+  .cr80 .scan{font-weight:bold;font-size:11px;letter-spacing:.5px;}
+
+  /* ---- Bulk label on-screen preview ---- */
+  .label-grid{
+    display:grid;
+    grid-template-columns:repeat(2,1fr);
+    gap:10px;
+    margin-top:14px;
+  }
+  .label-cell{
+    border:1px solid var(--border);
+    border-radius:6px;
+    padding:10px;
+    text-align:center;
+    background:#fff;
+  }
+  .label-cell .lid{font-weight:bold;font-size:15px;margin-bottom:4px;}
+  .label-cell canvas{max-width:100%;}
+  .label-cell svg{max-width:100%;margin-top:2px;}
+  .hint{font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5;}
+
+  /* ---- Print-only areas: hidden on screen, shown only when printing ---- */
+  #printRoot{display:none;}
+
+  @media print{
+    body *{visibility:hidden;}
+    #printRoot, #printRoot *{visibility:visible;}
+    #printRoot{
+      display:block !important;
+      position:absolute;
+      left:0; top:0;
+    }
+    header, nav.tabs{display:none !important;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>LWH Card &amp; Label Printer</h1>
+  <span>Logistics Warehouse, Inc.</span>
+</header>
+
+<nav class="tabs">
+  <button id="tabBtnCard" class="active">Business Card</button>
+  <button id="tabBtnLabels">Bulk Labels</button>
+</nav>
+
+<main>
+
+  <!-- ============ BUSINESS CARD TAB ============ -->
+  <section id="tabCard">
+    <div class="panel">
+      <h2>Card Details</h2>
+      <label>Full Name</label>
+      <input type="text" id="bcName" placeholder="John Smith">
+
+      <label>Title</label>
+      <input type="text" id="bcTitle" placeholder="Warehouse Supervisor">
+
+      <div class="row">
+        <div>
+          <label>Office Phone <span class="opt">(optional)</span></label>
+          <input type="tel" id="bcOffice" placeholder="479-000-0000">
+        </div>
+        <div>
+          <label>Cell Phone <span class="opt">(optional)</span></label>
+          <input type="tel" id="bcCell" placeholder="479-000-0000">
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>Fax <span class="opt">(optional)</span></label>
+          <input type="tel" id="bcFax" placeholder="479-000-0000">
+        </div>
+        <div>
+          <label>Email <span class="opt">(optional)</span></label>
+          <input type="email" id="bcEmail" placeholder="jsmith@logistics-warehouse.com">
+        </div>
+      </div>
+      <label>Website <span class="opt">(optional — defaults to company site)</span></label>
+      <input type="text" id="bcWebsite" placeholder="http://www.logistics-warehouse.com">
+
+      <button class="primary" id="bcPreviewBtn">Update Preview</button>
+      <button class="secondary" id="bcPrintBtn">Print to Card Printer</button>
+      <div class="msg" id="bcMsg"></div>
+      <div class="hint">Print opens your system print dialog — choose the HID card printer there. Front prints as page 1, back (QR scan side) as page 2.</div>
+    </div>
+
+    <div class="panel">
+      <h2>Preview</h2>
+      <div class="card-preview-wrap">
+        <div class="cr80" id="cr80Front">
+          <img class="logo" id="logoImg" src="logo.png" alt="" onerror="this.remove()">
+          <div class="name" id="pvName">Full Name</div>
+          <div class="title" id="pvTitle">Title</div>
+          <div class="rule">────────────</div>
+          <div class="contact" id="pvContact"></div>
+          <div class="contact" id="pvWebsite">www.logistics-warehouse.com</div>
+          <div class="tagline">&ldquo;Great Spaces in the Right Places&rdquo;</div>
+        </div>
+        <div class="cr80" id="cr80Back">
+          <canvas id="bcQrCanvas" width="90" height="90"></canvas>
+          <div class="scan">SCAN TO SAVE CONTACT</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ BULK LABELS TAB ============ -->
+  <section id="tabLabels" style="display:none;">
+    <div class="panel">
+      <h2>Label Range</h2>
+      <div class="row">
+        <div>
+          <label>Start ID</label>
+          <input type="text" id="lblStart" placeholder="Rack01">
+        </div>
+        <div>
+          <label>End ID</label>
+          <input type="text" id="lblEnd" placeholder="Rack22">
+        </div>
+      </div>
+
+      <label>Format</label>
+      <div class="fmt-group" id="fmtGroup">
+        <label class="checked"><input type="radio" name="fmt" value="thermal" checked> 4×6 Thermal (one per page)</label>
+        <label><input type="radio" name="fmt" value="sheet"> 8.5×11 Sheet, landscape</label>
+      </div>
+
+      <button class="primary" id="lblGenBtn">Generate Labels</button>
+      <button class="secondary" id="lblPrintBtn" disabled>Print Labels</button>
+      <div class="msg" id="lblMsg"></div>
+      <div class="hint">8.5×11 mode prints 6 labels per landscape sheet — works on plain paper or cardstock loaded landscape in the tray, whichever your printer has. 4×6 sends one label ID per page, sized for your Zebra thermal roll.</div>
+    </div>
+
+    <div class="panel" id="lblPreviewPanel" style="display:none;">
+      <h2>Preview (<span id="lblCount">0</span> labels)</h2>
+      <div class="label-grid" id="lblGrid"></div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ============ HIDDEN PRINT-ONLY MARKUP (populated by JS just before printing) ============ -->
+<style id="dynamicPageStyle"></style>
+<div id="printRoot"></div>
+
+<script>
+const CONFIG = {
+  COMPANY_NAME: 'Logistics Warehouse, Inc.',
+  TAGLINE: 'Great Spaces in the Right Places',
+  ADDRESS_LINE1: '700 South Fresno, P.O. Box 2297',
+  CITY: 'Fort Smith', STATE: 'AR', ZIP: '72902',
+  WEBSITE: 'http://www.logistics-warehouse.com'
+};
+
+/* ---------------- Tabs ---------------- */
+const tabBtnCard = document.getElementById('tabBtnCard');
+const tabBtnLabels = document.getElementById('tabBtnLabels');
+const tabCard = document.getElementById('tabCard');
+const tabLabels = document.getElementById('tabLabels');
+tabBtnCard.onclick = () => switchTab('card');
+tabBtnLabels.onclick = () => switchTab('labels');
+function switchTab(which){
+  const isCard = which === 'card';
+  tabCard.style.display = isCard ? '' : 'none';
+  tabLabels.style.display = isCard ? 'none' : '';
+  tabBtnCard.classList.toggle('active', isCard);
+  tabBtnLabels.classList.toggle('active', !isCard);
+}
+
+/* ---------------- Business card: preview ---------------- */
+function buildVCard(d){
+  const website = d.website || CONFIG.WEBSITE;
+  const lines = ['BEGIN:VCARD','VERSION:3.0',
+    'N:' + d.name.split(' ').reverse().join(';') + ';;;',
+    'FN:' + d.name, 'ORG:' + CONFIG.COMPANY_NAME, 'TITLE:' + d.title];
+  if (d.office) lines.push('TEL;TYPE=WORK,VOICE:' + d.office);
+  if (d.cell) lines.push('TEL;TYPE=CELL:' + d.cell);
+  if (d.fax) lines.push('TEL;TYPE=WORK,FAX:' + d.fax);
+  if (d.email) lines.push('EMAIL;TYPE=INTERNET:' + d.email);
+  lines.push('ADR;TYPE=WORK:;;' + CONFIG.ADDRESS_LINE1 + ';' + CONFIG.CITY + ';' + CONFIG.STATE + ';' + CONFIG.ZIP + ';USA');
+  lines.push('URL:' + website);
+  lines.push('END:VCARD');
+  return lines.join('\n');
+}
+
+function readCardForm(){
+  return {
+    name: document.getElementById('bcName').value.trim(),
+    title: document.getElementById('bcTitle').value.trim(),
+    office: document.getElementById('bcOffice').value.trim(),
+    cell: document.getElementById('bcCell').value.trim(),
+    fax: document.getElementById('bcFax').value.trim(),
+    email: document.getElementById('bcEmail').value.trim(),
+    website: document.getElementById('bcWebsite').value.trim()
+  };
+}
+
+function updateCardPreview(){
+  const d = readCardForm();
+  const msg = document.getElementById('bcMsg');
+  msg.textContent = ''; msg.className = 'msg';
+
+  if (!d.name || !d.title){
+    msg.textContent = 'Name and title are required.'; msg.className = 'msg error';
+    return false;
+  }
+  if (!d.office && !d.cell && !d.email){
+    msg.textContent = 'At least one of office phone, cell phone, or email is required.'; msg.className = 'msg error';
+    return false;
+  }
+
+  document.getElementById('pvName').textContent = d.name;
+  document.getElementById('pvTitle').textContent = d.title;
+  const bits = [];
+  if (d.office) bits.push('Office: ' + d.office);
+  if (d.cell) bits.push('Cell: ' + d.cell);
+  if (d.fax) bits.push('Fax: ' + d.fax);
+  if (d.email) bits.push(d.email);
+  document.getElementById('pvContact').textContent = bits.join(' • ');
+  document.getElementById('pvWebsite').textContent = d.website || CONFIG.WEBSITE;
+
+  const vcard = buildVCard(d);
+  const canvas = document.getElementById('bcQrCanvas');
+  QRCode.toCanvas(canvas, vcard, { width: 90, margin: 1 }, function(err){
+    if (err) { msg.textContent = 'QR generation failed: ' + err; msg.className = 'msg error'; }
+  });
+  return d;
+}
+
+document.getElementById('bcPreviewBtn').onclick = updateCardPreview;
+
+document.getElementById('bcPrintBtn').onclick = function(){
+  const d = updateCardPreview();
+  if (!d) return;
+  const vcard = buildVCard(d);
+  const printRoot = document.getElementById('printRoot');
+
+  const contactBits = [];
+  if (d.office) contactBits.push('Office: ' + d.office);
+  if (d.cell) contactBits.push('Cell: ' + d.cell);
+  if (d.fax) contactBits.push('Fax: ' + d.fax);
+
+  printRoot.innerHTML = `
+    <div class="print-card-page">
+      <img src="logo.png" style="max-height:32pt;margin-bottom:3pt;" onerror="this.remove()">
+      <div style="font-weight:bold;font-size:14pt;">${escapeHtml(d.name)}</div>
+      <div style="font-style:italic;font-weight:bold;font-size:8pt;">${escapeHtml(d.title)}</div>
+      <div style="font-size:5pt;margin:2pt 0;">────────────</div>
+      ${contactBits.length ? `<div style="font-weight:bold;font-size:5.5pt;">${escapeHtml(contactBits.join(' • '))}</div>` : ''}
+      ${d.email ? `<div style="font-weight:bold;font-size:5.5pt;">${escapeHtml(d.email)}</div>` : ''}
+      <div style="font-weight:bold;font-size:5.5pt;">${escapeHtml(CONFIG.ADDRESS_LINE1 + ', ' + CONFIG.CITY + ', ' + CONFIG.STATE + ' ' + CONFIG.ZIP)}</div>
+      <div style="font-weight:bold;font-size:5.5pt;">${escapeHtml(d.website || CONFIG.WEBSITE)}</div>
+      <div style="font-style:italic;font-weight:bold;font-size:7pt;color:#b00000;">&ldquo;${escapeHtml(CONFIG.TAGLINE)}&rdquo;</div>
+    </div>
+    <div class="print-card-page">
+      <canvas id="printQrCanvas" width="100" height="100"></canvas>
+      <div style="font-weight:bold;font-size:8pt;">SCAN TO SAVE CONTACT</div>
+    </div>
+  `;
+
+  document.getElementById('dynamicPageStyle').textContent = `
+    @page { size: 3.375in 2.125in; margin: 0; }
+    .print-card-page{
+      width:3.375in; height:2.125in;
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      text-align:center; page-break-after:always; font-family:Arial, Helvetica, sans-serif;
+    }
+    .print-card-page:last-child{page-break-after:auto;}
+  `;
+
+  QRCode.toCanvas(document.getElementById('printQrCanvas'), vcard, { width: 100, margin: 1 }, function(err){
+    if (err){ alert('QR generation failed: ' + err); return; }
+    window.print();
+  });
+};
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ---------------- Bulk labels ---------------- */
+function parseId(str){
+  const m = String(str).trim().match(/^(.*?)(\d+)$/);
+  if (!m) return null;
+  return { prefix: m[1], num: parseInt(m[2], 10), width: m[2].length };
+}
+
+function generateRange(startStr, endStr){
+  const s = parseId(startStr), e = parseId(endStr);
+  if (!s || !e) throw new Error('Both IDs must end in a number, e.g. Rack01');
+  if (s.prefix !== e.prefix) throw new Error('Start and end IDs must share the same prefix (e.g. Rack01 → Rack22)');
+  if (e.num < s.num) throw new Error('End ID must come after Start ID');
+  if (e.num - s.num > 499) throw new Error('That\'s more than 500 labels at once — split into smaller batches');
+  const width = Math.max(s.width, e.width);
+  const ids = [];
+  for (let n = s.num; n <= e.num; n++) ids.push(s.prefix + String(n).padStart(width, '0'));
+  return ids;
+}
+
+let currentLabelIds = [];
+
+document.querySelectorAll('#fmtGroup input').forEach(r => {
+  r.addEventListener('change', () => {
+    document.querySelectorAll('#fmtGroup label').forEach(l => l.classList.remove('checked'));
+    r.closest('label').classList.add('checked');
+  });
+});
+
+document.getElementById('lblGenBtn').onclick = function(){
+  const msg = document.getElementById('lblMsg');
+  msg.textContent = ''; msg.className = 'msg';
+  const start = document.getElementById('lblStart').value;
+  const end = document.getElementById('lblEnd').value;
+  let ids;
+  try { ids = generateRange(start, end); }
+  catch(err){ msg.textContent = err.message; msg.className = 'msg error'; return; }
+
+  currentLabelIds = ids;
+  document.getElementById('lblCount').textContent = ids.length;
+  document.getElementById('lblPreviewPanel').style.display = '';
+  document.getElementById('lblPrintBtn').disabled = false;
+
+  const grid = document.getElementById('lblGrid');
+  grid.innerHTML = '';
+  ids.forEach((id, i) => {
+    const cell = document.createElement('div');
+    cell.className = 'label-cell';
+    cell.innerHTML = `<div class="lid">${escapeHtml(id)}</div>
+      <canvas id="qr_${i}" width="70" height="70"></canvas>
+      <svg id="bc_${i}"></svg>`;
+    grid.appendChild(cell);
+  });
+  ids.forEach((id, i) => {
+    QRCode.toCanvas(document.getElementById('qr_' + i), id, { width: 70, margin: 1 }, () => {});
+    try {
+      JsBarcode('#bc_' + i, id, { format: 'CODE128', displayValue: false, height: 30, margin: 0 });
+    } catch(e) { /* ignore ids with characters CODE128 can't encode, QR still shows */ }
+  });
+  msg.textContent = ids.length + ' labels ready.'; msg.className = 'msg success';
+};
+
+document.getElementById('lblPrintBtn').onclick = function(){
+  if (!currentLabelIds.length) return;
+  const fmt = document.querySelector('#fmtGroup input:checked').value;
+  const printRoot = document.getElementById('printRoot');
+  const styleTag = document.getElementById('dynamicPageStyle');
+
+  if (fmt === 'thermal'){
+    styleTag.textContent = `
+      @page { size: 4in 6in; margin: 0.15in; }
+      .thermal-label{
+        width:100%; height:100%;
+        display:flex; flex-direction:column; align-items:center; justify-content:center;
+        text-align:center; page-break-after:always; font-family:Arial, Helvetica, sans-serif;
+      }
+      .thermal-label:last-child{page-break-after:auto;}
+      .thermal-label .lid{font-weight:bold;font-size:28pt;margin-bottom:8pt;}
+      .thermal-label svg{margin-top:6pt;}
+    `;
+    printRoot.innerHTML = currentLabelIds.map((id,i) => `
+      <div class="thermal-label">
+        <div class="lid">${escapeHtml(id)}</div>
+        <canvas id="pqr_${i}" width="160" height="160"></canvas>
+        <svg id="pbc_${i}"></svg>
+      </div>
+    `).join('');
+  } else {
+    styleTag.textContent = `
+      @page { size: 11in 8.5in; margin: 0.3in; }
+      .sheet-page{
+        width:100%; height:100%;
+        display:grid; grid-template-columns:repeat(2,1fr); grid-template-rows:repeat(3,1fr);
+        gap:0.2in; page-break-after:always;
+      }
+      .sheet-page:last-child{page-break-after:auto;}
+      .sheet-label{
+        border:1px dashed #999; border-radius:4pt;
+        display:flex; flex-direction:column; align-items:center; justify-content:center;
+        text-align:center; font-family:Arial, Helvetica, sans-serif;
+      }
+      .sheet-label .lid{font-weight:bold;font-size:20pt;margin-bottom:6pt;}
+      .sheet-label svg{margin-top:4pt;}
+    `;
+    const perPage = 6;
+    const pages = [];
+    for (let i = 0; i < currentLabelIds.length; i += perPage) pages.push(currentLabelIds.slice(i, i + perPage));
+    printRoot.innerHTML = pages.map((page, pi) => `
+      <div class="sheet-page">
+        ${page.map((id, li) => {
+          const gi = pi * perPage + li;
+          return `<div class="sheet-label">
+            <div class="lid">${escapeHtml(id)}</div>
+            <canvas id="pqr_${gi}" width="110" height="110"></canvas>
+            <svg id="pbc_${gi}"></svg>
+          </div>`;
+        }).join('')}
+      </div>
+    `).join('');
+  }
+
+  currentLabelIds.forEach((id, i) => {
+    const size = fmt === 'thermal' ? 160 : 110;
+    QRCode.toCanvas(document.getElementById('pqr_' + i), id, { width: size, margin: 1 }, () => {});
+    try {
+      JsBarcode('#pbc_' + i, id, { format: 'CODE128', displayValue: false, height: fmt === 'thermal' ? 40 : 26, margin: 0 });
+    } catch(e) {}
+  });
+
+  setTimeout(() => window.print(), 150);
+};
+
+/* ---------------- Service worker (offline install) ---------------- */
+if ('serviceWorker' in navigator){
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(()=>{}));
+}
+
+updateCardPreview();
+</script>
+</body>
+</html>
