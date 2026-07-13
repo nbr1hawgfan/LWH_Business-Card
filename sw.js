@@ -1,8 +1,8 @@
-const CACHE_NAME = 'lwh-card-label-v1';
+const CACHE_NAME = 'lwh-card-label-v2';
 const CORE_ASSETS = [
   './', './index.html', './manifest.json', './logo.png', './favicon.ico',
   './icon-192.png', './icon-512.png', './icon-192-maskable.png', './icon-512-maskable.png',
-  './apple-touch-icon.png'
+  './apple-touch-icon.png', './vendor/qrcode.min.js', './vendor/JsBarcode.all.min.js'
 ];
 
 self.addEventListener('install', (event) => {
@@ -22,9 +22,6 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Network-first for CDN scripts (QR/barcode libs) so they stay current,
-  // cache-first for the app shell so it still opens offline on the floor.
-  if (event.request.url.includes('cdn.jsdelivr.net')) return;
   event.respondWith(
     caches.match(event.request).then((cached) => cached || fetch(event.request))
   );

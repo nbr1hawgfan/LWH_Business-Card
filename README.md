@@ -3,6 +3,16 @@
 Zero-build static PWA. No Apps Script, no server — everything (vCard QR codes,
 Code128 barcodes) is generated in the browser and sent straight to `window.print()`.
 
+## Why the QR codes/barcodes might not show up
+
+If you pushed an earlier version of this app that loaded QR/barcode libraries
+from a CDN (`cdn.jsdelivr.net`), and either your network blocks that domain
+or your browser already cached the old broken page, you may see label text
+but no QR code or barcode image. That's now fixed — the libraries live
+locally in `vendor/` and nothing calls out to the internet. If you're
+updating an existing install, do a hard refresh (Ctrl+Shift+R) once so the
+old service worker cache clears; after that it self-updates normally.
+
 ## One-time setup
 
 Logo and icons are already in this folder, generated from the LWH badge logo:
