@@ -206,13 +206,30 @@
   .label-cell{
     border:1px solid var(--border);
     border-radius:6px;
-    padding:10px;
+    padding:12px 10px;
     text-align:center;
     background:#fff;
   }
-  .label-cell .lid{font-weight:bold;font-size:15px;margin-bottom:4px;}
-  .label-cell canvas{max-width:100%;}
-  .label-cell svg{max-width:100%;margin-top:2px;}
+  .lbl-box{
+    display:inline-block;
+    border:3px solid #000;
+    border-radius:3px;
+    padding:4px 12px;
+    font-weight:900;
+    font-size:22px;
+    max-width:100%;
+    word-break:break-word;
+  }
+  .lbl-subtitle{font-weight:bold;font-size:11px;margin-top:8px;}
+  .lbl-codes{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:14px;
+    margin-top:10px;
+  }
+  .lbl-codes svg{max-width:45%;height:auto;}
+  .lbl-codes canvas{max-width:45%;height:auto;}
   .hint{font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5;}
 
   /* ---- Print-only areas: hidden on screen, shown only when printing ---- */
@@ -320,14 +337,14 @@
 
       <label>Format</label>
       <div class="fmt-group" id="fmtGroup">
-        <label class="checked"><input type="radio" name="fmt" value="thermal" checked> 4×6 Thermal (one per page)</label>
-        <label><input type="radio" name="fmt" value="sheet"> 8.5×11 Sheet, landscape</label>
+        <label class="checked"><input type="radio" name="fmt" value="rack" checked> 4×6 Rack Label</label>
+        <label><input type="radio" name="fmt" value="bay"> 8.5×11 Bay Sign</label>
       </div>
 
       <button class="primary" id="lblGenBtn">Generate Labels</button>
       <button class="secondary" id="lblPrintBtn" disabled>Print Labels</button>
       <div class="msg" id="lblMsg"></div>
-      <div class="hint">8.5×11 mode prints 6 labels per landscape sheet — works on plain paper or cardstock loaded landscape in the tray, whichever your printer has. 4×6 sends one label ID per page, sized for your Zebra thermal roll.</div>
+      <div class="hint">One label per page either way. 4×6 prints landscape for your Zebra thermal roll. 8.5×11 prints one big bay sign per landscape sheet — plain paper or cardstock, whichever's in the tray.</div>
     </div>
 
     <div class="panel" id="lblPreviewPanel" style="display:none;">
@@ -519,20 +536,25 @@ document.getElementById('lblGenBtn').onclick = function(){
   document.getElementById('lblPreviewPanel').style.display = '';
   document.getElementById('lblPrintBtn').disabled = false;
 
+  const fmt = document.querySelector('#fmtGroup input:checked').value;
   const grid = document.getElementById('lblGrid');
   grid.innerHTML = '';
   ids.forEach((id, i) => {
     const cell = document.createElement('div');
     cell.className = 'label-cell';
-    cell.innerHTML = `<div class="lid">${escapeHtml(id)}</div>
-      <canvas id="qr_${i}" width="70" height="70"></canvas>
-      <svg id="bc_${i}"></svg>`;
+    cell.innerHTML = `
+      <div class="lbl-box">${escapeHtml(id)}</div>
+      ${fmt === 'bay' ? '<div class="lbl-subtitle">Scan location barcode</div>' : ''}
+      <div class="lbl-codes">
+        <svg id="bc_${i}"></svg>
+        <canvas id="qr_${i}" width="60" height="60"></canvas>
+      </div>`;
     grid.appendChild(cell);
   });
   ids.forEach((id, i) => {
-    QRCode.toCanvas(document.getElementById('qr_' + i), id, { width: 70, margin: 1 }, () => {});
+    QRCode.toCanvas(document.getElementById('qr_' + i), id, { width: 60, margin: 1 }, () => {});
     try {
-      JsBarcode('#bc_' + i, id, { format: 'CODE128', displayValue: false, height: 30, margin: 0 });
+      JsBarcode('#bc_' + i, id, { format: 'CODE128', displayValue: true, fontSize: 12, height: 32, margin: 4 });
     } catch(e) { /* ignore ids with characters CODE128 can't encode, QR still shows */ }
   });
   msg.textContent = ids.length + ' labels ready.'; msg.className = 'msg success';
@@ -544,64 +566,73 @@ document.getElementById('lblPrintBtn').onclick = function(){
   const printRoot = document.getElementById('printRoot');
   const styleTag = document.getElementById('dynamicPageStyle');
 
-  if (fmt === 'thermal'){
+  if (fmt === 'rack'){
     styleTag.textContent = `
-      @page { size: 4in 6in; margin: 0.15in; }
-      .thermal-label{
+      @page { size: 6in 4in; margin: 0.2in; }
+      .rack-label{
         width:100%; height:100%;
         display:flex; flex-direction:column; align-items:center; justify-content:center;
         text-align:center; page-break-after:always; font-family:Arial, Helvetica, sans-serif;
       }
-      .thermal-label:last-child{page-break-after:auto;}
-      .thermal-label .lid{font-weight:bold;font-size:28pt;margin-bottom:8pt;}
-      .thermal-label svg{margin-top:6pt;}
+      .rack-label:last-child{page-break-after:auto;}
+      .rack-label .lbl-box{
+        display:inline-block; border:5pt solid #000; border-radius:4pt;
+        padding:8pt 20pt; font-weight:900; font-size:56pt; max-width:92%;
+      }
+      .rack-label .lbl-codes{
+        display:flex; align-items:center; justify-content:center; gap:40pt; margin-top:24pt;
+      }
     `;
     printRoot.innerHTML = currentLabelIds.map((id,i) => `
-      <div class="thermal-label">
-        <div class="lid">${escapeHtml(id)}</div>
-        <canvas id="pqr_${i}" width="160" height="160"></canvas>
-        <svg id="pbc_${i}"></svg>
+      <div class="rack-label">
+        <div class="lbl-box">${escapeHtml(id)}</div>
+        <div class="lbl-codes">
+          <svg id="pbc_${i}"></svg>
+          <canvas id="pqr_${i}" width="120" height="120"></canvas>
+        </div>
       </div>
     `).join('');
   } else {
     styleTag.textContent = `
-      @page { size: 11in 8.5in; margin: 0.3in; }
-      .sheet-page{
+      @page { size: 11in 8.5in; margin: 0.4in; }
+      .bay-sign{
         width:100%; height:100%;
-        display:grid; grid-template-columns:repeat(2,1fr); grid-template-rows:repeat(3,1fr);
-        gap:0.2in; page-break-after:always;
-      }
-      .sheet-page:last-child{page-break-after:auto;}
-      .sheet-label{
-        border:1px dashed #999; border-radius:4pt;
         display:flex; flex-direction:column; align-items:center; justify-content:center;
-        text-align:center; font-family:Arial, Helvetica, sans-serif;
+        text-align:center; page-break-after:always; font-family:Arial, Helvetica, sans-serif;
       }
-      .sheet-label .lid{font-weight:bold;font-size:20pt;margin-bottom:6pt;}
-      .sheet-label svg{margin-top:4pt;}
+      .bay-sign:last-child{page-break-after:auto;}
+      .bay-sign .lbl-box{
+        display:inline-block; border:7pt solid #000; border-radius:6pt;
+        padding:14pt 32pt; font-weight:900; font-size:110pt; max-width:92%;
+      }
+      .bay-sign .lbl-subtitle{font-weight:bold; font-size:24pt; margin-top:20pt;}
+      .bay-sign .lbl-codes{
+        display:flex; align-items:center; justify-content:center; gap:70pt; margin-top:26pt;
+      }
     `;
-    const perPage = 6;
-    const pages = [];
-    for (let i = 0; i < currentLabelIds.length; i += perPage) pages.push(currentLabelIds.slice(i, i + perPage));
-    printRoot.innerHTML = pages.map((page, pi) => `
-      <div class="sheet-page">
-        ${page.map((id, li) => {
-          const gi = pi * perPage + li;
-          return `<div class="sheet-label">
-            <div class="lid">${escapeHtml(id)}</div>
-            <canvas id="pqr_${gi}" width="110" height="110"></canvas>
-            <svg id="pbc_${gi}"></svg>
-          </div>`;
-        }).join('')}
+    printRoot.innerHTML = currentLabelIds.map((id,i) => `
+      <div class="bay-sign">
+        <div class="lbl-box">${escapeHtml(id)}</div>
+        <div class="lbl-subtitle">Scan location barcode</div>
+        <div class="lbl-codes">
+          <svg id="pbc_${i}"></svg>
+          <canvas id="pqr_${i}" width="170" height="170"></canvas>
+        </div>
       </div>
     `).join('');
   }
 
   currentLabelIds.forEach((id, i) => {
-    const size = fmt === 'thermal' ? 160 : 110;
-    QRCode.toCanvas(document.getElementById('pqr_' + i), id, { width: size, margin: 1 }, () => {});
+    const qrSize = fmt === 'rack' ? 120 : 170;
+    const bcHeight = fmt === 'rack' ? 70 : 110;
+    const bcFontSize = fmt === 'rack' ? 20 : 30;
+    const bcWidth = fmt === 'rack' ? 2.4 : 3.4;
+    QRCode.toCanvas(document.getElementById('pqr_' + i), id, { width: qrSize, margin: 1 }, () => {});
     try {
-      JsBarcode('#pbc_' + i, id, { format: 'CODE128', displayValue: false, height: fmt === 'thermal' ? 40 : 26, margin: 0 });
+      JsBarcode('#pbc_' + i, id, {
+        format: 'CODE128', displayValue: true, fontSize: bcFontSize,
+        height: bcHeight, width: bcWidth, margin: 6
+      });
     } catch(e) {}
   });
 
